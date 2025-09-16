@@ -4,12 +4,11 @@ services:
   # 🐘 PostgreSQL Database
   db:
     image: postgres:15-alpine
-    container_name: cosmetolog-local-db
     restart: unless-stopped
     environment:
-      POSTGRES_DB: cosmetolog_local
-      POSTGRES_USER: local_user
-      POSTGRES_PASSWORD: local_pass
+      POSTGRES_DB: cosmetolog_bot
+      POSTGRES_USER: cosmetolog
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
@@ -26,18 +25,12 @@ services:
 
   # 🤖 Твой бот
   bot:
-    image: python:3.11-slim-bullseye
+    build: .                    # ← собирается из Dockerfile
     container_name: cosmetolog-local-bot
     restart: unless-stopped
     volumes:
-      - ./src:/app
       - ./logs:/app/logs
-      - ./logs:/logs
       - ./texts:/app/texts
-    working_dir: /app
-    # ✅ ДОБАВЬ ЗАДЕРЖКУ В 5 СЕКУНД
-    command: >
-      sh -c "sleep 5 && pip install -r requirements.txt && python -m bot.main"
     environment:
       - BOT_TOKEN=${BOT_TOKEN}
       - ADMIN_IDS=${ADMIN_IDS}
