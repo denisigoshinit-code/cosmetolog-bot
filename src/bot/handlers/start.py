@@ -1,5 +1,5 @@
 # bot/handlers/start.py
-from aiogram import Router, types
+from aiogram import Router, F, types
 from aiogram.filters import Command
 from bot.config import MAIN_KB, LANGUAGE
 from bot.utils.database import add_user  
@@ -8,7 +8,7 @@ from pathlib import Path
 
 router = Router()
 
-PHOTO_START = "AgACAgIAAxkBAAIBPmi5A7yG-MLs5c0xHIBtjOb74oWsAAK--DEbFM_ISbyJFS5JLulWAQADAgADeAADNgQ"
+PHOTO_START = "AgACAgIAAxkBAAMDaMn2s3_P2dFPmgZojMRv3zHWRlsAAhP8MRvRa1FKJPDrAqph6koBAAMCAAN4AAM2BA"
 
 @router.message(Command("start"))
 async def cmd_start(message: types.Message):
@@ -33,3 +33,8 @@ async def cmd_start(message: types.Message):
         caption=texts["start"],
         reply_markup=MAIN_KB
     )
+# @router.message(F.photo)
+# async def get_photo_id(message: types.Message):
+    photo = message.photo[-1]
+    file_id = photo.file_id
+    await message.reply(f"📸 Ваш новый file_id:\n\n<code>{file_id}</code>", parse_mode="HTML")
