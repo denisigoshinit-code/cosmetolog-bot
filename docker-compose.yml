@@ -26,7 +26,6 @@ services:
   # 🤖 Твой бот
   bot:
     build: .                    # ← собирается из Dockerfile
-    container_name: cosmetolog-local-bot
     restart: unless-stopped
     volumes:
       - ./logs:/app/logs
