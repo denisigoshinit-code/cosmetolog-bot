@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  # 🐘 PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: cosmetolog-local-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: cosmetolog_local
+      POSTGRES_USER: local_user
+      POSTGRES_PASSWORD: local_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    # ✅ УСИЛЕННАЯ ПРОВЕРКА ЗДОРОВЬЯ
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U local_user -d cosmetolog_local && psql -U local_user -d cosmetolog_local -c 'SELECT 1'"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 20s  # Увеличим время на инициализацию
+    networks:  # ← ДОБАВИТЬ СЕТЬ ДЛЯ БАЗЫ
+      - app_network
+
+  # 🤖 Твой бот
+  bot:
+    image: python:3.11-slim-bullseye
+    container_name: cosmetolog-local-bot
+    restart: unless-stopped
+    volumes:
+      - ./src:/app
+      - ./logs:/app/logs
+      - ./logs:/logs
+      - ./texts:/app/texts
+    working_dir: /app
+    # ✅ ДОБАВЬ ЗАДЕРЖКУ В 5 СЕКУНД
+    command: >
+      sh -c "sleep 5 && pip install -r requirements.txt && python -m bot.main"
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - ADMIN_IDS=${ADMIN_IDS}
+      - LANGUAGE=${LANGUAGE}
+      - DATABASE_URL=${DATABASE_URL}
+      - TZ=Asia/Yakutsk
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app_network
+
+networks:
+  app_network:
+    driver: bridge

@@ -1,0 +1,38 @@
+# Виртуальное окружение
+.venv/
+venv/
+env/
+
+# Переменные окружения
+.env
+.env.local
+
+# Логи
+logs/
+*.log
+
+# База данных и данные
+data/postgresql/
+*.db
+*.sqlite3
+# PostgreSQL data directory
+data/postgres/
+data/postgres/*
+
+# Кэш Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Системные файлы
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*~
