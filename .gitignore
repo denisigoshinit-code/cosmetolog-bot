@@ -15,9 +15,9 @@ logs/
 data/postgresql/
 *.db
 *.sqlite3
-# PostgreSQL data directory
-data/postgres/
-data/postgres/*
+# PostgreSQL
+/data/postgres
+!/data/postgres/.gitkeep
 
 # Кэш Python
 __pycache__/
