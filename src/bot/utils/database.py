@@ -406,7 +406,7 @@ async def get_today_appointments():
     try:
         today = datetime.now().strftime("%Y-%m-%d")  
         rows = await conn.fetch("""
-            SELECT a.date, a.time, s.name, u.first_name, u.username, u.id
+            SELECT a.date, a.time, s.name, u.first_name, u.username, u.id AS user_id
             FROM appointments a
             JOIN services s ON a.service_id = s.id
             JOIN users u ON a.user_id = u.id
@@ -421,7 +421,8 @@ async def get_today_appointments():
                 'time': row['time'],
                 'service': row['name'],
                 'user_name': row['first_name'],
-                'username': row['username']
+                'username': row['username'],
+                'user_id': row['user_id']
             })
         return result
     except Exception as e:
@@ -436,7 +437,7 @@ async def get_tomorrow_appointments():
     try:
         tomorrow = (datetime.now() + timedelta(days=1)).date().strftime("%Y-%m-%d")  # Преобразуем в строку
         rows = await conn.fetch("""
-            SELECT a.date, a.time, s.name, u.first_name, u.id
+            SELECT a.date, a.time, s.name, u.first_name, u.username, u.id AS user_id
             FROM appointments a
             JOIN services s ON a.service_id = s.id
             JOIN users u ON a.user_id = u.id
@@ -446,11 +447,12 @@ async def get_tomorrow_appointments():
         result = []
         for row in rows:
             result.append({
-                'date': row['date'],  # Уже строка
+                'date': row['date'],
                 'time': row['time'],
                 'service': row['name'],
                 'user_name': row['first_name'],
-                'user_id': row['id']
+                'username': row['username'],
+                'user_id': row['user_id']
             })
         return result
     except Exception as e:
@@ -467,7 +469,7 @@ async def get_week_appointments():
         week_later = (datetime.now() + timedelta(days=7)).date().strftime("%Y-%m-%d")  # Преобразуем в строку
         
         rows = await conn.fetch("""
-            SELECT a.date, a.time, s.name, u.first_name, u.username
+            SELECT a.date, a.time, s.name, u.first_name, u.username, u.id AS user_id
             FROM appointments a
             JOIN services s ON a.service_id = s.id
             JOIN users u ON a.user_id = u.id
@@ -478,11 +480,12 @@ async def get_week_appointments():
         result = []
         for row in rows:
             result.append({
-                'date': row['date'],  # Уже строка
+                'date': row['date'],
                 'time': row['time'],
                 'service': row['name'],
                 'user_name': row['first_name'],
-                'username': row['username']
+                'username': row['username'],
+                'user_id': row['user_id']
             })
         return result
     except Exception as e:
