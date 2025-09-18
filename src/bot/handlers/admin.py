@@ -49,7 +49,7 @@ async def show_pending_coupons(message: types.Message):
     
     coupons = await get_pending_coupons()
     if not coupons:
-        await message.answer("Нет купонов, ожидающих подтверждения.", reply_markup=ADMIN_KB)
+        await message.answer("Нет купонов, ожидающих подтверждения.", reply_markup=COUPONS_KB)
         return
     
     for coupon in coupons:
@@ -74,7 +74,7 @@ async def show_pending_coupons(message: types.Message):
         
         await message.answer(text, reply_markup=kb)
     
-    await message.answer("Выберите действие:", reply_markup=ADMIN_KB)
+    await message.answer("Выберите действие:", reply_markup=COUPONS_KB)
 
 @router.message(F.text == "💳 Ожидающие оплаты")
 async def show_payment_coupons(message: types.Message):

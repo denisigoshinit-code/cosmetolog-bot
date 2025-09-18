@@ -239,17 +239,31 @@ async def create_appointment(user_id: int, service_id: int, date_str: str, time:
         await conn.close()
 
 async def get_user_appointments(user_id: int):
-    """Возвращает список всех записей пользователя."""
+    """Возвращает список будущих записей пользователя."""
     conn = await asyncpg.connect(get_db_url())
     try:
+        now = datetime.now()
+        today_str = now.strftime("%Y-%m-%d")
+        current_time_str = now.strftime("%H:%M")
+
+        # ВСЁ! ТОЛЬКО ДОБАВИЛ $2 и $3 в WHERE
         rows = await conn.fetch("""
             SELECT a.id, a.date, a.time, s.name
             FROM appointments a
             JOIN services s ON a.service_id = s.id
             WHERE a.user_id = $1
+              AND (
+                a.date > $2 OR 
+                (a.date = $2 AND a.time >= $3)
+              )
             ORDER BY a.date, a.time
-        """, user_id)
-        return rows
+        """, user_id, today_str, current_time_str)
+
+        return rows  
+
+    except Exception as e:
+        logger.error(f"DB_ERROR get_user_appointments: {e}")
+        return []
     finally:
         await conn.close()
 
