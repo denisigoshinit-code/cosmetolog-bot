@@ -322,7 +322,7 @@ async def export_csv(message: types.Message):
     
     # Сохраняем во временный файл
     filename = "appointments_export.csv"
-    with open(filename, "w", encoding="utf-8") as f:
+    with open(filename, "w", encoding="utf-8-sig") as f:
         f.write(csv_content)
     
     # Отправляем файл правильно
