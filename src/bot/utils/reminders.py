@@ -37,6 +37,22 @@ async def send_reminder_2h(user_id: int, date_str: str, time: str, service: str)
     except Exception as e:
         logger.error(f"REMINDER_2H_FAILED - User: {user_id}, Error: {e}")
 
+# --- НОВАЯ ФУНКЦИЯ: За 20 минут ---
+async def send_reminder_20min(user_id: int, date_str: str, time: str, service: str):
+    """Отправляет напоминание за 20 минут"""
+    try:
+        text = (
+            f"🕐 Почти время!\n\n"
+            f"Ваша запись начнётся через 20 минут:\n"
+            f"💅 {service}\n\n"
+            f"Готовимся к приёму!"
+        )
+        await bot.send_message(user_id, text)
+        logger.info(f"REMINDER_20MIN_SENT - User: {user_id}, Time: {time}")
+    except Exception as e:
+        logger.error(f"REMINDER_20MIN_FAILED - User: {user_id}, Error: {e}")
+
+
 async def schedule_reminders():
     """Планирует напоминания о записях"""
     # Напоминания за 24 часа (на завтра)
@@ -75,6 +91,14 @@ async def schedule_reminders():
                 DateTrigger(run_date=reminder_time),
                 args=[user_id, date_str, time, service]  # Передаем строку даты
             )
+
+        reminder_time_20min = appointment_datetime - timedelta(minutes=20)
+        if reminder_time_20min > datetime.now():
+            scheduler.add_job(
+                send_reminder_20min,
+                DateTrigger(run_date=reminder_time_20min),
+                args=[user_id, date_str, time, service]
+            )            
 
 async def notify_admin_about_booking(user_name: str, service: str, date: str, time: str):
     """Уведомляет администраторов о новой записи"""
