@@ -21,14 +21,18 @@ async def show_location(message: types.Message):
     except FileNotFoundError:
         await message.answer("❌ Ошибка: файл локализации не найден.")
         return
-    
-    text = (
-        f"{texts['location_title']}\n\n"
-        f"{texts['address']}\n"
-        f"{texts['phone']}\n"
-        f"{texts['telegram']}\n\n"
-        f"{texts['maps_yandex']}\n"
-        f"{texts['maps_google']}"
+
+    maps_yandex = texts["maps_yandex"].format(maps_yandex_url=texts["maps_yandex_url"])
+    maps_google = texts["maps_google"].format(maps_google_url=texts["maps_google_url"])
+
+    # Теперь подставляем всё в карточку
+    text = texts["location_card"].format(
+        location_title=texts["location_title"],
+        address=texts["address"],
+        phone=texts["phone"],
+        telegram=texts["telegram"],
+        maps_yandex=maps_yandex,
+        maps_google=maps_google
     )
     
     kb = types.ReplyKeyboardMarkup(

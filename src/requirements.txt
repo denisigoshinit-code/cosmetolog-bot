@@ -3,3 +3,5 @@ aiohttp==3.8.4
 asyncpg==0.29.0
 apscheduler==3.10.1
 python-dotenv==1.0.0
+icalendar==5.0.11
+pytz==2024.1

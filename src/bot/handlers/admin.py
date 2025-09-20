@@ -8,6 +8,7 @@ from bot.utils.database import (
 from bot.commands.db_tools import get_db_stats, export_appointments_to_csv, get_schedule_for_period
 from bot.fsm import AdminStates
 from bot.config import ADMIN_IDS, MAIN_KB, ADMIN_KB, COUPONS_KB, SCHEDULE_KB, LANGUAGE
+from datetime import datetime, timedelta
 import json
 from pathlib import Path
 
@@ -20,19 +21,53 @@ async def cmd_admin(message: types.Message):
         return
     await message.answer("🎟️ Админка", reply_markup=ADMIN_KB)
 
+@router.message(F.text == "🔙 Назад")
+async def back_to_admin(message: types.Message, state: FSMContext):
+    if message.from_user.id not in ADMIN_IDS:
+        return
+    await state.clear()
+    await message.answer("🔙 Возврат в админ-панель:", reply_markup=ADMIN_KB)
+
+@router.message(F.text == "🏠 Главное меню")
+async def back_to_main(message: types.Message):
+    if message.from_user.id not in ADMIN_IDS:
+        return
+    await message.answer("🏠 Вы вернулись в главное меню:", reply_markup=MAIN_KB)
+
 @router.message(F.text == "📅 Мои клиенты")
 async def admin_clients(message: types.Message):
     if message.from_user.id not in ADMIN_IDS:
         return
     
+    # Получаем записи на ближайшие 7 дней
     appointments = await get_week_appointments()
     if not appointments:
         await message.answer("📭 Нет записей на ближайшую неделю", reply_markup=ADMIN_KB)
         return
 
+    # ФИЛЬТР: оставляем только будущие записи
+    now = datetime.now()
+    future_appointments = []
+    for appt in appointments:
+        try:
+            # Парсим дату и время
+            appt_datetime = datetime.strptime(f"{appt['date']} {appt['time']}", "%Y-%m-%d %H:%M")
+            if appt_datetime > now:
+                future_appointments.append(appt)
+        except (ValueError, KeyError):
+            continue  # На всякий случай пропускаем битые данные
+
+    if not future_appointments:
+        await message.answer("📭 Нет предстоящих записей", reply_markup=ADMIN_KB)
+        return
+
     text = "📅 ЗАПИСИ НА БЛИЖАЙШУЮ НЕДЕЛЮ\n\n"
-    for appointment in appointments:  # ИЗМЕНЕНО: appointments теперь словарь
-        text += f"📅 {appointment['date']} в {appointment['time']}\n👤 {appointment['user_name'] or 'Неизвестно'} (@{appointment['username'] or 'нет'})\n💅 {appointment['service']}\n\n"
+    for appointment in future_appointments:
+        text += (
+            f"📅 {appointment['date']} в {appointment['time']}\n"
+            f"👤 {appointment['user_name'] or 'Неизвестно'} (@{appointment['username'] or 'нет'})\n"
+            f"💅 {appointment['service']}\n\n"
+        )
     
     await message.answer(text, reply_markup=ADMIN_KB)
 
@@ -226,15 +261,29 @@ async def reject_coupon_callback(callback: types.CallbackQuery):
 
 @router.message(F.text == "⚙️ График")
 async def manage_schedule(message: types.Message, state: FSMContext):
+    """Показывает меню управления графиком"""
     if message.from_user.id not in ADMIN_IDS:
         return
-    await message.answer("Выберите действие для графика:", reply_markup=SCHEDULE_KB)
+    await message.answer(
+        "⚙️ *Управление графиком*\n\n"
+        "Вы можете:\n"
+        "• 🟩 Разрешить приём — клиенты смогут записаться\n"
+        "• 🟥 Заблокировать день — запись невозможна\n"
+        "• ⏳ Установить обед — с 13:00 до 14:00 перерыв\n"
+        "• 🌙 Ночная смена — приём до 18:00\n\n"
+        "Выберите действие:",
+        parse_mode="Markdown",
+        reply_markup=SCHEDULE_KB
+    )
     await state.set_state(AdminStates.waiting_for_schedule_action)
+
 
 @router.message(AdminStates.waiting_for_schedule_action, F.text.in_(["🟩 Разрешить приём", "🟥 Заблокировать день", "⏳ Установить обед", "🌙 Ночная смена"]))
 async def schedule_action(message: types.Message, state: FSMContext):
+    """Сохраняет выбранное действие и запрашивает дату"""
     if message.from_user.id not in ADMIN_IDS:
         return
+
     actions = {
         "🟩 Разрешить приём": ("Да", "09:00 – 20:00"),
         "🟥 Заблокировать день": ("Нет", "—"),
@@ -243,25 +292,67 @@ async def schedule_action(message: types.Message, state: FSMContext):
     }
     status, time_range = actions[message.text]
     await state.update_data(status=status, time_range=time_range)
+    
     await message.answer("Введите дату (YYYY-MM-DD):")
     await state.set_state(AdminStates.waiting_for_date)
 
-@router.message(AdminStates.waiting_for_date, F.text.len() == 10)
-async def update_schedule_handler(message: types.Message, state: FSMContext):
+
+@router.message(AdminStates.waiting_for_date, F.text.in_(["🟩 Разрешить приём", "🟥 Заблокировать день", "⏳ Установить обед", "🌙 Ночная смена"]))
+async def change_schedule_action(message: types.Message, state: FSMContext):
+    """Позволяет изменить действие, не выходя из режима"""
     if message.from_user.id not in ADMIN_IDS:
         return
-    date = message.text
-    data = await state.get_data()
-    await update_schedule_date(date, data["status"], data["time_range"])
-    await message.answer(f"✅ График на {date} обновлён.", reply_markup=ADMIN_KB)
-    await state.clear()
+
+    actions = {
+        "🟩 Разрешить приём": ("Да", "09:00 – 20:00"),
+        "🟥 Заблокировать день": ("Нет", "—"),
+        "⏳ Установить обед": ("Да", "09:00 – 17:00 (обед 13:00–14:00)"),
+        "🌙 Ночная смена": ("До 18:00", "09:00 – 17:00")
+    }
+    status, time_range = actions[message.text]
+    await state.update_data(status=status, time_range=time_range)
+
+    action_names = {
+        "🟩 Разрешить приём": "разрешить приём",
+        "🟥 Заблокировать день": "заблокировать день",
+        "⏳ Установить обед": "установить обед",
+        "🌙 Ночная смена": "начать ночную смену"
+    }
+    await message.answer(
+        f"✅ Выбрано: *{action_names[message.text]}*\nВведите дату (YYYY-MM-DD):",
+        parse_mode="Markdown"
+    )
+
+
+@router.message(AdminStates.waiting_for_date)
+async def update_schedule_handler(message: types.Message, state: FSMContext):
+    """Обрабатывает ввод даты и обновляет график"""
+    if message.from_user.id not in ADMIN_IDS:
+        return
+
+    # Если это корректная дата — сохраняем
+    if len(message.text) == 10 and message.text.count("-") == 2:
+        try:
+            from datetime import datetime
+            datetime.strptime(message.text, "%Y-%m-%d")
+            data = await state.get_data()
+            await update_schedule_date(message.text, data["status"], data["time_range"])
+            await message.answer(f"✅ График на {message.text} обновлён.", reply_markup=ADMIN_KB)
+            await state.clear()
+        except ValueError:
+            await message.answer("❌ Неверный формат даты. Используйте: YYYY-MM-DD")
+        return
+
+    # Если ни дата, ни действие — ошибка
+    await message.answer("❌ Введите корректную дату (YYYY-MM-DD) или выберите новое действие.")
+
 
 @router.message(F.text == "📅 Показать график")
 async def show_schedule(message: types.Message):
+    """Показывает график на ближайшие 14 дней"""
     if message.from_user.id not in ADMIN_IDS:
         return
     
-    # Получаем график на ближайшие 14 дней
     from datetime import datetime, timedelta
     start_date = datetime.now().strftime("%Y-%m-%d")
     end_date = (datetime.now() + timedelta(days=14)).strftime("%Y-%m-%d")
@@ -273,7 +364,6 @@ async def show_schedule(message: types.Message):
     
     text = "📅 ГРАФИК РАБОТЫ (14 дней):\n\n"
     for day in schedule:
-        # ИСПРАВЛЕНО: правильное обращение к элементам словаря
         date_str = day['date']
         available = day['available']
         time_range = day['time_range']
@@ -330,15 +420,3 @@ async def export_csv(message: types.Message):
     document = FSInputFile(filename)
     await message.answer_document(document, caption="📁 Экспорт записей")
 
-@router.message(F.text == "🔙 Назад")
-async def back_to_admin(message: types.Message, state: FSMContext):
-    if message.from_user.id not in ADMIN_IDS:
-        return
-    await state.clear()
-    await message.answer("🔙 Возврат в админ-панель:", reply_markup=ADMIN_KB)
-
-@router.message(F.text == "🏠 Главное меню")
-async def back_to_main(message: types.Message):
-    if message.from_user.id not in ADMIN_IDS:
-        return
-    await message.answer("🏠 Вы вернулись в главное меню:", reply_markup=MAIN_KB)

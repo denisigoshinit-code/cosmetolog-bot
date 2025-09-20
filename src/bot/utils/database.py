@@ -266,15 +266,18 @@ async def get_user_appointments(user_id: int):
         return []
     finally:
         await conn.close()
-
+        
+# src/bot/utils/database.py
 async def cancel_appointment(appointment_id: int, user_id: int):
     """Отменяет запись пользователя по ID записи."""
     conn = await asyncpg.connect(get_db_url())
     try:
-        await conn.execute(
+        result = await conn.execute(
             "DELETE FROM appointments WHERE id = $1 AND user_id = $2",
             appointment_id, user_id
         )
+        # Если DELETE affected_rows > 0 — значит запись была удалена
+        return result.split()[-1] != "0"
     finally:
         await conn.close()
 

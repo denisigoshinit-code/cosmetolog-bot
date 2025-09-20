@@ -1,5 +1,7 @@
 from aiogram import Router, F, types
 from aiogram.fsm.context import FSMContext
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from bot.utils.calendar_export import create_ics_file
 from bot.utils.calendar import create_calendar
 from bot.utils.database import (
     get_services, is_time_available, create_appointment, 
@@ -12,6 +14,9 @@ from bot.config import MAIN_KB, LANGUAGE, ADMIN_IDS
 import json
 from pathlib import Path
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = Router()
 
@@ -220,17 +225,18 @@ async def confirm_booking(callback: types.CallbackQuery, state: FSMContext):
     await create_appointment(user_id, service_id, date_str, time_str)
     service_name = await get_service_name(service_id)
 
-    # Уведомляем админа через новую систему
+    # Уведомляем админа
     try:
         await notify_admin_about_booking(
             callback.from_user.first_name,
             service_name,
-            date_str,  # date_str уже строка
-            time_str   # time_str уже строка
+            date_str,
+            time_str
         )
     except Exception as e:
-        print(f"Не удалось уведомить админа: {e}")
+        logger.error(f"Не удалось уведомить админа: {e}")
 
+    # Загружаем тексты
     ROOT_DIR = Path(__file__).parent.parent.parent
     texts_path = ROOT_DIR / "texts" / f"{LANGUAGE}.json"
     try:
@@ -240,16 +246,49 @@ async def confirm_booking(callback: types.CallbackQuery, state: FSMContext):
         await callback.message.edit_text("❌ Ошибка: файл локализации не найден.", reply_markup=None)
         await state.clear()
         return
-        
+
+    # 1. Подтверждение записи
     await callback.message.edit_text(
         texts["confirmed"].format(date=date_str, time=time_str, service=service_name),
         parse_mode="Markdown",
         reply_markup=None
     )
+
+    # 2. Сообщение с информацией
     await callback.message.answer(
-        "✅ Запись подтверждена. Чтобы отменить — нажмите '🧾 Мои записи'.",
+        texts["after_booking_message"],
         reply_markup=MAIN_KB
     )
+
+    # 3. Карточка с адресом и картами
+    maps_yandex = texts["maps_yandex"].format(maps_yandex_url=texts["maps_yandex_url"])
+    maps_google = texts["maps_google"].format(maps_google_url=texts["maps_google_url"])
+
+    location_text = texts["location_card"].format(
+        location_title=texts["location_title"],
+        address=texts["address"],
+        phone=texts["phone"],
+        telegram=texts["telegram"],
+        maps_yandex=maps_yandex,
+        maps_google=maps_google
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🧭 Проложить маршрут (Яндекс)", url=texts["maps_yandex_url"])],
+        [InlineKeyboardButton(text="📌 Проложить маршрут (Google)", url=texts["maps_google_url"])]
+    ])
+    await callback.message.answer(location_text, reply_markup=kb, disable_web_page_preview=False)
+
+    # 4. Файл .ics — добавить в календарь
+    from io import BytesIO
+    from aiogram.types import BufferedInputFile
+
+    ics_data = create_ics_file(date_str, time_str, service_name)
+    buffer = BytesIO(ics_data)
+    buffer.name = "appointment.ics"
+
+    document = BufferedInputFile(buffer.getvalue(), filename="appointment.ics")
+    await callback.message.answer_document(document, caption=texts["calendar_ics"], parse_mode="Markdown")
+
     await state.clear()
 
 @router.callback_query(F.data == "cancel", Appointment.waiting_for_confirmation)

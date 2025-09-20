@@ -37,7 +37,6 @@ async def send_reminder_2h(user_id: int, date_str: str, time: str, service: str)
     except Exception as e:
         logger.error(f"REMINDER_2H_FAILED - User: {user_id}, Error: {e}")
 
-# --- НОВАЯ ФУНКЦИЯ: За 20 минут ---
 async def send_reminder_20min(user_id: int, date_str: str, time: str, service: str):
     """Отправляет напоминание за 20 минут"""
     try:
@@ -52,53 +51,54 @@ async def send_reminder_20min(user_id: int, date_str: str, time: str, service: s
     except Exception as e:
         logger.error(f"REMINDER_20MIN_FAILED - User: {user_id}, Error: {e}")
 
-
 async def schedule_reminders():
     """Планирует напоминания о записях"""
-    # Напоминания за 24 часа (на завтра)
+
+    # === 1. Напоминания за 24 часа (на завтра) ===
     tomorrow_appointments = await get_tomorrow_appointments()
     for appointment in tomorrow_appointments:
-        date_str = appointment['date']  # Получаем строку даты
+        date_str = appointment['date']
         time = appointment['time']
         service = appointment['service']
         user_id = appointment['user_id']
-        
-        # Преобразуем строку в datetime для расчета времени напоминания
+
         appointment_datetime = datetime.strptime(f"{date_str} {time}", "%Y-%m-%d %H:%M")
         reminder_time = appointment_datetime - timedelta(hours=24)
-        
+
         if reminder_time > datetime.now():
             scheduler.add_job(
                 send_reminder_24h,
                 DateTrigger(run_date=reminder_time),
-                args=[user_id, date_str, time, service]  # Передаем строку даты
+                args=[user_id, date_str, time, service]
             )
-    
-    # Напоминания за 2 часа (на сегодня)
+
+    # === 2. Напоминания за 2 часа (на сегодня) ===
     today_appointments = await get_today_appointments()
     for appointment in today_appointments:
-        date_str = appointment['date']  # Получаем строку даты
+        date_str = appointment['date']
         time = appointment['time']
         service = appointment['service']
         user_id = appointment['user_id']
-        
+
         appointment_datetime = datetime.strptime(f"{date_str} {time}", "%Y-%m-%d %H:%M")
-        reminder_time = appointment_datetime - timedelta(hours=2)
-        
-        if reminder_time > datetime.now():
+
+        # --- За 2 часа ---
+        reminder_time_2h = appointment_datetime - timedelta(hours=2)
+        if reminder_time_2h > datetime.now():
             scheduler.add_job(
                 send_reminder_2h,
-                DateTrigger(run_date=reminder_time),
-                args=[user_id, date_str, time, service]  # Передаем строку даты
+                DateTrigger(run_date=reminder_time_2h),
+                args=[user_id, date_str, time, service]
             )
 
+        # --- За 20 минут ---
         reminder_time_20min = appointment_datetime - timedelta(minutes=20)
         if reminder_time_20min > datetime.now():
             scheduler.add_job(
                 send_reminder_20min,
                 DateTrigger(run_date=reminder_time_20min),
                 args=[user_id, date_str, time, service]
-            )            
+            )
 
 async def notify_admin_about_booking(user_name: str, service: str, date: str, time: str):
     """Уведомляет администраторов о новой записи"""

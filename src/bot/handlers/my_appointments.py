@@ -1,15 +1,24 @@
+# src/bot/handlers/my_appointments.py
 from aiogram import Router, F, types
-from bot.utils.database import get_user_appointments, cancel_appointment, get_service_name
+from bot.utils.database import get_user_appointments, cancel_appointment
 from bot.config import MAIN_KB, LANGUAGE
 import json
 from pathlib import Path
+from bot.utils.logger import log
 
 router = Router()
 
+
 @router.message(F.text == "🧾 Мои записи")
 async def my_appointments(message: types.Message):
-    appointments = await get_user_appointments(message.from_user.id)
-    
+    """
+    Показывает все активные записи пользователя.
+    Каждая запись — отдельное сообщение с inline-кнопкой отмены.
+    """
+    user_id = message.from_user.id
+    appointments = await get_user_appointments(user_id)
+
+    # Загружаем тексты
     ROOT_DIR = Path(__file__).parent.parent.parent
     texts_path = ROOT_DIR / "texts" / f"{LANGUAGE}.json"
     try:
@@ -23,56 +32,56 @@ async def my_appointments(message: types.Message):
         await message.answer("📭 У вас нет активных записей.", reply_markup=MAIN_KB)
         return
 
-    text = "📌 Ваши активные записи:\n\n"
-    kb_buttons = []
-    
-    for appointment in appointments:
-        # ИСПРАВЛЕНО: правильный порядок - (id, date, time, service_name)
-        appointment_id, date_str, time_str, service_name = appointment
-        text += f"📅 {date_str} в {time_str}\n💅 {service_name}\n\n"
-        # Создаем кнопку с названием услуги вместо ID
-        kb_buttons.append([types.KeyboardButton(text=f"❌ Отменить: {service_name}")])
+    # Отправляем каждую запись отдельно с кнопкой
+    for appt in appointments:
+        appointment_id, date_str, time_str, service_name = appt
 
-    # Добавляем главное меню
-    kb_buttons.append([types.KeyboardButton(text="🏠 Главное меню")])
-    
-    kb = types.ReplyKeyboardMarkup(
-        keyboard=kb_buttons,
-        resize_keyboard=True
-    )
-    
-    await message.answer(text, reply_markup=kb)
-
-@router.message(F.text.startswith("❌ Отменить: "))
-async def cancel_specific_appointment(message: types.Message):
-    try:
-        # Извлекаем название услуги из текста кнопки
-        service_name = message.text.replace("❌ Отменить: ", "").strip()
-        
-        # Получаем все записи пользователя
-        appointments = await get_user_appointments(message.from_user.id)
-        
-        # Ищем запись с таким названием услуги
-        appointment_to_cancel = None
-        for appointment in appointments:
-            # ИСПРАВЛЕНО: правильный порядок - (id, date, time, service_name)
-            appointment_id, date_str, time_str, current_service_name = appointment
-            if current_service_name == service_name:
-                appointment_to_cancel = appointment
-                break
-        
-        if not appointment_to_cancel:
-            await message.answer("❌ Запись не найдена.", reply_markup=MAIN_KB)
-            return
-            
-        # ИСПРАВЛЕНО: правильный порядок - (id, date, time, service_name)
-        appointment_id, date_str, time_str, service_name = appointment_to_cancel
-        await cancel_appointment(appointment_id, message.from_user.id)
-        
-        await message.answer(
-            f"✅ Запись на '{service_name}' отменена.", 
-            reply_markup=MAIN_KB
+        text = (
+            f"📌 *Ваша запись*\n\n"
+            f"📅 {date_str} в {time_str}\n"
+            f"💅 {service_name}"
         )
-        
+
+        kb = types.InlineKeyboardMarkup(inline_keyboard=[
+            [types.InlineKeyboardButton(
+                text="❌ Отменить эту запись",
+                callback_data=f"cancel_appt_{appointment_id}"
+            )]
+        ])
+
+        await message.answer(text, reply_markup=kb, parse_mode="Markdown")
+
+    # В конце — главное меню
+    await message.answer("Выберите действие:", reply_markup=MAIN_KB)
+
+
+@router.callback_query(F.data.startswith("cancel_appt_"))
+async def cancel_appointment_callback(callback: types.CallbackQuery):
+    """
+    Обработчик нажатия на кнопку отмены записи.
+    Использует ID записи для точной отмены.
+    """
+    try:
+        appointment_id = int(callback.data.split("_")[2])
+        user_id = callback.from_user.id
+
+        success = await cancel_appointment(appointment_id, user_id)
+
+        if success:
+            # Меняем текст и убираем кнопку
+            await callback.message.edit_text(
+                "✅ Запись отменена.",
+                reply_markup=None
+            )
+            await callback.answer("Запись успешно отменена")
+            log(user_id=user_id, action="appointment_cancelled", appointment_id=appointment_id)
+        else:
+            await callback.answer("❌ Запись не найдена", show_alert=True)
+            log(user_id=user_id, action="appointment_not_found", appointment_id=appointment_id)
+
+    except ValueError:
+        await callback.answer("❌ Неверный формат данных", show_alert=True)
+        log(user_id=callback.from_user.id, action="cancel_appointment_failed", error="invalid_id_format")
     except Exception as e:
-        await message.answer("❌ Не удалось отменить запись.", reply_markup=MAIN_KB)
+        await callback.answer("❌ Ошибка при отмене", show_alert=True)
+        log(user_id=callback.from_user.id, action="cancel_appointment_failed", error=str(e))

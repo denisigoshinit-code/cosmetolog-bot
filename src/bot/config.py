@@ -51,10 +51,8 @@ COUPONS_KB = ReplyKeyboardMarkup(
 # Клавиатура для управления графиком 
 SCHEDULE_KB = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton(text="🟩 Разрешить приём")],
-        [KeyboardButton(text="🟥 Заблокировать день")],
-        [KeyboardButton(text="⏳ Установить обед")],
-        [KeyboardButton(text="🌙 Ночная смена")],
+        [KeyboardButton(text="🟩 Разрешить приём"), KeyboardButton(text="🟥 Заблокировать день")],
+        [KeyboardButton(text="⏳ Установить обед"), KeyboardButton(text="🌙 Ночная смена")],
         [KeyboardButton(text="🔙 Назад")]
     ],
     resize_keyboard=True
