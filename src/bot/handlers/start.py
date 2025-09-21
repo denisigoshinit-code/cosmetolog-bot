@@ -8,7 +8,7 @@ from pathlib import Path
 
 router = Router()
 
-PHOTO_START = "AgACAgIAAxkBAAIBPmi5A7yG-MLs5c0xHIBtjOb74oWsAAK--DEbFM_ISbyJFS5JLulWAQADAgADeAADNgQ"
+PHOTO_START = "AgACAgIAAxkBAAIFTGjP2eBHklKCOYfB88Ydn80U2e3eAAKT8DEbRHCASjDjyn__kAYgAQADAgADeAADNgQ"
 
 @router.message(Command("start"))
 async def cmd_start(message: types.Message):
