@@ -54,6 +54,11 @@ async def send_reminder_20min(user_id: int, date_str: str, time: str, service: s
 async def schedule_reminders():
     """Планирует напоминания о записях"""
 
+    # === КРИТИЧЕСКАЯ ЗАЩИТА ОТ ДУБЛЕЙ ===
+    for job in scheduler.get_jobs():
+        if job.func.__name__.startswith("send_reminder_"):
+            scheduler.remove_job(job.id)
+
     # === 1. Напоминания за 24 часа (на завтра) ===
     tomorrow_appointments = await get_tomorrow_appointments()
     for appointment in tomorrow_appointments:
@@ -69,7 +74,8 @@ async def schedule_reminders():
             scheduler.add_job(
                 send_reminder_24h,
                 DateTrigger(run_date=reminder_time),
-                args=[user_id, date_str, time, service]
+                args=[user_id, date_str, time, service],
+                id=f"remind_24h_{user_id}_{date_str}_{time}"
             )
 
     # === 2. Напоминания за 2 часа (на сегодня) ===
@@ -88,7 +94,8 @@ async def schedule_reminders():
             scheduler.add_job(
                 send_reminder_2h,
                 DateTrigger(run_date=reminder_time_2h),
-                args=[user_id, date_str, time, service]
+                args=[user_id, date_str, time, service],
+                id=f"remind_24h_{user_id}_{date_str}_{time}"
             )
 
         # --- За 20 минут ---
@@ -97,7 +104,8 @@ async def schedule_reminders():
             scheduler.add_job(
                 send_reminder_20min,
                 DateTrigger(run_date=reminder_time_20min),
-                args=[user_id, date_str, time, service]
+                args=[user_id, date_str, time, service],
+                id=f"remind_24h_{user_id}_{date_str}_{time}"
             )
 
 async def notify_admin_about_booking(user_name: str, service: str, date: str, time: str):
