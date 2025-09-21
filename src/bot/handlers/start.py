@@ -33,8 +33,10 @@ async def cmd_start(message: types.Message):
         caption=texts["start"],
         reply_markup=MAIN_KB
     )
-# @router.message(F.photo)
-# async def get_photo_id(message: types.Message):
+@router.message(F.photo)
+async def get_photo_id(message: types.Message):
     photo = message.photo[-1]
     file_id = photo.file_id
     await message.reply(f"📸 Ваш новый file_id:\n\n<code>{file_id}</code>", parse_mode="HTML")
+
+    
