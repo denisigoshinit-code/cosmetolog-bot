@@ -10,7 +10,7 @@ def generate_schedule_data():
     # Начинаем с дня 1 цикла (12.09 - Дневная смена)
     cycle_start_index = 0
     
-    for i in range(365):  # На 90 дней вперед от 12.09
+    for i in range(366):  # На 90 дней вперед от 12.09
         current_date = start_date + timedelta(days=i)
         date_str = current_date.strftime("%Y-%m-%d")
         
