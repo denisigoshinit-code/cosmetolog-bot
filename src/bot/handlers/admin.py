@@ -1,9 +1,10 @@
 from aiogram import Router, F, types
 from aiogram.fsm.context import FSMContext
+import re
 from bot.utils.database import (
     get_all_coupons, get_week_appointments, mark_coupon_paid, 
     use_coupon_session, update_schedule_date, get_pending_coupons, get_active_coupons,
-    get_payment_coupons, update_coupon_status,restore_time_slot, block_time_slot, get_appointment_by_id, delete_appointment,restore_time_slot, reject_coupon, get_active_coupons, get_coupon_by_id
+    get_payment_coupons, update_coupon_status, block_time_slot, restore_time_slot, is_date_available, get_appointment_by_id, delete_appointment,restore_time_slot, reject_coupon, get_active_coupons, get_coupon_by_id
 )
 from bot.commands.db_tools import get_db_stats, export_appointments_to_csv, get_schedule_for_period
 from bot.fsm import AdminStates
@@ -475,30 +476,28 @@ async def admin_cancel_appointment(callback: types.CallbackQuery):
 
 
 
-@router.message(F.text.regexp(r"^/block (\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})$"))
-async def cmd_block_slot(message: types.Message):
+@router.message()
+async def handle_block_unblock_commands(message: types.Message):
     if message.from_user.id not in ADMIN_IDS:
         return
-    parts = message.text.split()
-    date_str = parts[1]
-    time_str = parts[2]
-    
-    # Проверим, существует ли день в графике
-    from bot.utils.database import is_date_available
-    if not await is_date_available(date_str):
-        await message.answer("❌ Эта дата не в графике или заблокирована целиком.")
+
+    text = message.text.strip()
+
+    # Обработка /block
+    block_match = re.match(r"^/block(?:@\w+)?\s+(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})$", text)
+    if block_match:
+        date_str, time_str = block_match.groups()
+        if not await is_date_available(date_str):
+            await message.answer("❌ Эта дата не в графике или заблокирована целиком.")
+            return
+        await block_time_slot(date_str, time_str)
+        await message.answer(f"🔒 Слот {time_str} на {date_str} заблокирован.")
         return
 
-    await block_time_slot(date_str, time_str)
-    await message.answer(f"🔒 Слот {time_str} на {date_str} заблокирован.")
-
-@router.message(F.text.regexp(r"^/unblock (\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})$"))
-async def cmd_unblock_slot(message: types.Message):
-    if message.from_user.id not in ADMIN_IDS:
+    # Обработка /unblock
+    unblock_match = re.match(r"^/unblock(?:@\w+)?\s+(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})$", text)
+    if unblock_match:
+        date_str, time_str = unblock_match.groups()
+        await restore_time_slot(date_str, time_str)
+        await message.answer(f"🔓 Слот {time_str} на {date_str} разблокирован.")
         return
-    parts = message.text.split()
-    date_str = parts[1]
-    time_str = parts[2]
-
-    await restore_time_slot(date_str, time_str)
-    await message.answer(f"🔓 Слот {time_str} на {date_str} разблокирован.")
