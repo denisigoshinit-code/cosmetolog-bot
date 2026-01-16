@@ -74,7 +74,7 @@ async def admin_clients(message: types.Message):
                 callback_data=f"admin_cancel_{appt['id']}"
             )]
         ])
-        await message.answer(text, reply_markup=kb, parse_mode="Markdown")
+        await message.answer(text, reply_markup=kb)
 
     await message.answer("Выберите действие:", reply_markup=ADMIN_KB)
 
