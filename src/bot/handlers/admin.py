@@ -3,7 +3,7 @@ from aiogram.fsm.context import FSMContext
 from bot.utils.database import (
     get_all_coupons, get_week_appointments, mark_coupon_paid, 
     use_coupon_session, update_schedule_date, get_pending_coupons, get_active_coupons,
-    get_payment_coupons, update_coupon_status, reject_coupon, get_active_coupons, get_coupon_by_id
+    get_payment_coupons, update_coupon_status,restore_time_slot, block_time_slot, get_appointment_by_id, delete_appointment,restore_time_slot, reject_coupon, get_active_coupons, get_coupon_by_id
 )
 from bot.commands.db_tools import get_db_stats, export_appointments_to_csv, get_schedule_for_period
 from bot.fsm import AdminStates
@@ -11,8 +11,11 @@ from bot.config import ADMIN_IDS, MAIN_KB, ADMIN_KB, COUPONS_KB, SCHEDULE_KB, LA
 from datetime import datetime, timedelta
 import json
 from pathlib import Path
+import logging
 
 router = Router()
+
+logger = logging.getLogger(__name__)
 
 @router.message(F.text == "/admin")
 async def cmd_admin(message: types.Message):
@@ -38,51 +41,42 @@ async def back_to_main(message: types.Message):
 async def admin_clients(message: types.Message):
     if message.from_user.id not in ADMIN_IDS:
         return
-    
-    # Получаем записи на ближайшие 7 дней
+
     appointments = await get_week_appointments()
     if not appointments:
         await message.answer("📭 Нет записей на ближайшую неделю", reply_markup=ADMIN_KB)
         return
 
-    # ФИЛЬТР: оставляем только будущие записи
     now = datetime.now()
     future_appointments = []
     for appt in appointments:
         try:
-            # Парсим дату и время
             appt_datetime = datetime.strptime(f"{appt['date']} {appt['time']}", "%Y-%m-%d %H:%M")
             if appt_datetime > now:
                 future_appointments.append(appt)
         except (ValueError, KeyError):
-            continue  # На всякий случай пропускаем битые данные
+            continue
 
     if not future_appointments:
         await message.answer("📭 Нет предстоящих записей", reply_markup=ADMIN_KB)
         return
 
-    text = "📅 ЗАПИСИ НА БЛИЖАЙШУЮ НЕДЕЛЮ\n\n"
-    for appointment in future_appointments:
+    # Отправляем каждую запись отдельно с кнопкой
+    for appt in future_appointments:
         text = (
-            f"📅 {appointment['date']} в {appointment['time']}\n"
-            f"👤 {appointment['user_name'] or 'Неизвестно'} (@{appointment['username'] or 'нет'})\n"
-            f"💅 {appointment['service']}"
+            f"📅 *{appt['date']} в {appt['time']}*\n"
+            f"👤 {appt['user_name'] or 'Неизвестно'} (@{appt['username'] or 'нет'})\n"
+            f"💅 {appt['service']}"
         )
+        kb = types.InlineKeyboardMarkup(inline_keyboard=[
+            [types.InlineKeyboardButton(
+                text="❌ Отменить запись",
+                callback_data=f"admin_cancel_{appt['id']}"
+            )]
+        ])
+        await message.answer(text, reply_markup=kb, parse_mode="Markdown")
 
-        kb = types.InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    types.InlineKeyboardButton(
-                        text="❌ Отменить запись",
-                        callback_data=f"cancel_appt|{appointment['id']}"
-                    )
-                ]
-            ]
-        )
-
-        await message.answer(text, reply_markup=kb)
-
-    await message.answer("⬆️ Список записей", reply_markup=ADMIN_KB)
+    await message.answer("Выберите действие:", reply_markup=ADMIN_KB)
 
 
 @router.message(F.text == "🎟️ Купоны")
@@ -434,46 +428,77 @@ async def export_csv(message: types.Message):
     document = FSInputFile(filename)
     await message.answer_document(document, caption="📁 Экспорт записей")
 
-@router.callback_query(F.data.startswith("cancel_appt|"))
-async def cancel_appointment_admin(callback: types.CallbackQuery):
+@router.callback_query(F.data.startswith("admin_cancel_"))
+async def admin_cancel_appointment(callback: types.CallbackQuery):
     if callback.from_user.id not in ADMIN_IDS:
-        await callback.answer("❌ Доступ запрещён")
+        await callback.answer("❌ Доступ запрещён", show_alert=True)
         return
 
-    _, appt_id = callback.data.split("|")
-
-    from bot.utils.database import (
-        get_appointment_by_id,
-        delete_appointment,
-        restore_time_slot
-    )
-
-    appointment = await get_appointment_by_id(appt_id)
-    if not appointment:
-        await callback.answer("❌ Запись не найдена")
-        return
-
-    # Удаляем запись
-    await delete_appointment(appt_id)
-
-    # Возвращаем слот в расписание
-    await restore_time_slot(appointment['date'], appointment['time'])
-
-    # Уведомляем клиента
     try:
-        await callback.bot.send_message(
-            appointment['user_id'],
-            (
-                "❗️ Ваша запись была отменена косметологом.\n\n"
-                f"📅 {appointment['date']} в {appointment['time']}\n\n"
-                "Вы можете выбрать другое удобное время в боте."
+        appointment_id = int(callback.data.split("_")[2])
+        
+        # Получаем запись, чтобы знать дату, время и user_id
+        appointment = await get_appointment_by_id(appointment_id)
+        if not appointment:
+            await callback.answer("❌ Запись не найдена", show_alert=True)
+            return
+
+        # Удаляем запись
+        await delete_appointment(appointment_id)
+
+        # Возвращаем слот в расписание
+        await restore_time_slot(appointment['date'], appointment['time'])
+
+        # Уведомляем клиента
+        try:
+            await callback.bot.send_message(
+                appointment['user_id'],
+                (
+                    "❗️ Ваша запись была отменена косметологом.\n\n"
+                    f"📅 {appointment['date']} в {appointment['time']}\n\n"
+                    "Вы можете выбрать другое удобное время в боте."
+                )
             )
+        except Exception:
+            pass  # если пользователь заблокировал — игнорируем
+
+        # Обновляем сообщение админа
+        await callback.message.edit_text(
+            "✅ Запись удалена администратором.",
+            reply_markup=None
         )
-    except Exception:
-        pass  # если пользователь заблокировал бота — не падаем
+        await callback.answer("Запись отменена")
 
-    await callback.message.edit_text(
-        callback.message.text + "\n\n❌ Запись отменена."
-    )
-    await callback.answer("Запись отменена")
+    except Exception as e:
+        logger.error(f"Ошибка при отмене записи админом: {e}")
+        await callback.answer("❌ Ошибка при удалении", show_alert=True)
 
+
+
+@router.message(F.text.regexp(r"^/block (\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})$"))
+async def cmd_block_slot(message: types.Message):
+    if message.from_user.id not in ADMIN_IDS:
+        return
+    parts = message.text.split()
+    date_str = parts[1]
+    time_str = parts[2]
+    
+    # Проверим, существует ли день в графике
+    from bot.utils.database import is_date_available
+    if not await is_date_available(date_str):
+        await message.answer("❌ Эта дата не в графике или заблокирована целиком.")
+        return
+
+    await block_time_slot(date_str, time_str)
+    await message.answer(f"🔒 Слот {time_str} на {date_str} заблокирован.")
+
+@router.message(F.text.regexp(r"^/unblock (\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})$"))
+async def cmd_unblock_slot(message: types.Message):
+    if message.from_user.id not in ADMIN_IDS:
+        return
+    parts = message.text.split()
+    date_str = parts[1]
+    time_str = parts[2]
+
+    await restore_time_slot(date_str, time_str)
+    await message.answer(f"🔓 Слот {time_str} на {date_str} разблокирован.")

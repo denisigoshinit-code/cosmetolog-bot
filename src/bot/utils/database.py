@@ -486,7 +486,7 @@ async def get_week_appointments():
         week_later = (datetime.now() + timedelta(days=7)).date().strftime("%Y-%m-%d")  # Преобразуем в строку
         
         rows = await conn.fetch("""
-            SELECT a.date, a.time, s.name, u.first_name, u.username, u.id AS user_id
+            SELECT a.id, a.date, a.time, s.name, u.first_name, u.username, u.id AS user_id
             FROM appointments a
             JOIN services s ON a.service_id = s.id
             JOIN users u ON a.user_id = u.id
@@ -497,6 +497,7 @@ async def get_week_appointments():
         result = []
         for row in rows:
             result.append({
+                'id': row['id'],               # ← ДОБАВЬ ЭТО
                 'date': row['date'],
                 'time': row['time'],
                 'service': row['name'],
@@ -722,7 +723,30 @@ async def delete_appointment(appt_id: str):
     finally:
         await conn.close()
 
+async def block_time_slot(date: str, time: str):
+    """
+    Удаляет указанный временной слот из available_times (блокирует его).
+    """
+    conn = await asyncpg.connect(get_db_url())
+    try:
+        schedule_date = datetime.strptime(date, "%Y-%m-%d").date()
+        row = await conn.fetchrow("""
+            SELECT available_times FROM schedule WHERE date = $1
+        """, schedule_date)
 
+        if not row or not row["available_times"]:
+            return
+
+        times = row["available_times"].split(",")
+        if time in times:
+            times.remove(time)
+            await conn.execute("""
+                UPDATE schedule
+                SET available_times = $1
+                WHERE date = $2
+            """, ",".join(times), schedule_date)
+    finally:
+        await conn.close()
 
 async def restore_time_slot(date: str, time: str):
     """
