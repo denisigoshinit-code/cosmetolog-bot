@@ -690,3 +690,70 @@ async def get_available_time_slots(date_str: str) -> list:
         return []
     finally:
         await conn.close()
+
+async def get_appointment_by_id(appt_id: str):
+    """
+    Возвращает запись из appointments по id
+    """
+    conn = await asyncpg.connect(get_db_url())
+    try:
+        row = await conn.fetchrow("""
+            SELECT id, user_id, date, time, service_id
+            FROM appointments
+            WHERE id = $1
+        """, int(appt_id))
+
+        return dict(row) if row else None
+    finally:
+        await conn.close()
+
+
+
+async def delete_appointment(appt_id: str):
+    """
+    Удаляет запись из appointments
+    """
+    conn = await asyncpg.connect(get_db_url())
+    try:
+        await conn.execute(
+            "DELETE FROM appointments WHERE id = $1",
+            int(appt_id)
+        )
+    finally:
+        await conn.close()
+
+
+
+async def restore_time_slot(date: str, time: str):
+    """
+    Возвращает время обратно в available_times,
+    если его там ещё нет
+    """
+    conn = await asyncpg.connect(get_db_url())
+    try:
+        schedule_date = datetime.strptime(date, "%Y-%m-%d").date()
+
+        row = await conn.fetchrow("""
+            SELECT available_times
+            FROM schedule
+            WHERE date = $1
+        """, schedule_date)
+
+        if not row:
+            return
+
+        times = row["available_times"].split(",") if row["available_times"] else []
+
+        if time not in times:
+            times.append(time)
+            times.sort()
+
+            await conn.execute("""
+                UPDATE schedule
+                SET available_times = $1
+                WHERE date = $2
+            """, ",".join(times), schedule_date)
+
+    finally:
+        await conn.close()
+

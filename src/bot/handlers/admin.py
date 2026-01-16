@@ -63,13 +63,27 @@ async def admin_clients(message: types.Message):
 
     text = "📅 ЗАПИСИ НА БЛИЖАЙШУЮ НЕДЕЛЮ\n\n"
     for appointment in future_appointments:
-        text += (
+        text = (
             f"📅 {appointment['date']} в {appointment['time']}\n"
             f"👤 {appointment['user_name'] or 'Неизвестно'} (@{appointment['username'] or 'нет'})\n"
-            f"💅 {appointment['service']}\n\n"
+            f"💅 {appointment['service']}"
         )
-    
-    await message.answer(text, reply_markup=ADMIN_KB)
+
+        kb = types.InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    types.InlineKeyboardButton(
+                        text="❌ Отменить запись",
+                        callback_data=f"cancel_appt|{appointment['id']}"
+                    )
+                ]
+            ]
+        )
+
+        await message.answer(text, reply_markup=kb)
+
+    await message.answer("⬆️ Список записей", reply_markup=ADMIN_KB)
+
 
 @router.message(F.text == "🎟️ Купоны")
 async def admin_coupons(message: types.Message):
@@ -419,4 +433,47 @@ async def export_csv(message: types.Message):
     from aiogram.types import FSInputFile
     document = FSInputFile(filename)
     await message.answer_document(document, caption="📁 Экспорт записей")
+
+@router.callback_query(F.data.startswith("cancel_appt|"))
+async def cancel_appointment_admin(callback: types.CallbackQuery):
+    if callback.from_user.id not in ADMIN_IDS:
+        await callback.answer("❌ Доступ запрещён")
+        return
+
+    _, appt_id = callback.data.split("|")
+
+    from bot.utils.database import (
+        get_appointment_by_id,
+        delete_appointment,
+        restore_time_slot
+    )
+
+    appointment = await get_appointment_by_id(appt_id)
+    if not appointment:
+        await callback.answer("❌ Запись не найдена")
+        return
+
+    # Удаляем запись
+    await delete_appointment(appt_id)
+
+    # Возвращаем слот в расписание
+    await restore_time_slot(appointment['date'], appointment['time'])
+
+    # Уведомляем клиента
+    try:
+        await callback.bot.send_message(
+            appointment['user_id'],
+            (
+                "❗️ Ваша запись была отменена косметологом.\n\n"
+                f"📅 {appointment['date']} в {appointment['time']}\n\n"
+                "Вы можете выбрать другое удобное время в боте."
+            )
+        )
+    except Exception:
+        pass  # если пользователь заблокировал бота — не падаем
+
+    await callback.message.edit_text(
+        callback.message.text + "\n\n❌ Запись отменена."
+    )
+    await callback.answer("Запись отменена")
 
