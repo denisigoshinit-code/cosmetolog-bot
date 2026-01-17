@@ -391,3 +391,7 @@ async def mark_coupon_used(message: types.Message):
     await message.answer("Введите ID купона для отметки использования:")
     # Здесь нужно добавить состояние для ожидания ID купона
 
+@router.message(F.text == "🏠 Главное меню", StateFilter("*"))
+async def back_to_main_menu(message: types.Message, state: FSMContext):
+    await state.clear()
+    await message.answer("🏠 Вы вернулись в главное меню:", reply_markup=MAIN_KB)

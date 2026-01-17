@@ -1,5 +1,6 @@
 # bot/handlers/info.py
 from aiogram import Router, F, types
+from aiogram.filters import StateFilter
 from bot.config import MAIN_KB, LANGUAGE
 import logging
 from pathlib import Path
@@ -50,3 +51,8 @@ async def show_location(message: types.Message):
     except Exception as e:
         logger.error(f"Failed to send location info: {e}")
         await message.answer("❌ Не удалось отправить информацию. Попробуйте позже.")
+
+    @router.message(F.text == "🏠 Главное меню", StateFilter("*"))
+async def back_to_main_menu(message: types.Message, state: FSMContext):
+    await state.clear()
+    await message.answer("🏠 Вы вернулись в главное меню:", reply_markup=MAIN_KB)

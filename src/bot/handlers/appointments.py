@@ -1,6 +1,7 @@
 from aiogram import Router, F, types
 from aiogram.fsm.context import FSMContext
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.filters import StateFilter
 from bot.utils.calendar_export import create_ics_file
 from bot.utils.calendar import create_calendar
 from bot.utils.database import (
@@ -328,3 +329,8 @@ async def next_month(callback: types.CallbackQuery):
     service_id = int(parts[4])
     kb = await create_calendar(service_id, year, month)
     await callback.message.edit_reply_markup(reply_markup=kb)
+
+@router.message(F.text == "🏠 Главное меню", StateFilter("*"))
+async def back_to_main_menu(message: types.Message, state: FSMContext):
+    await state.clear()
+    await message.answer("🏠 Вы вернулись в главное меню:", reply_markup=MAIN_KB)
