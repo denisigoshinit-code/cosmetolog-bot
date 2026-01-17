@@ -476,28 +476,36 @@ async def admin_cancel_appointment(callback: types.CallbackQuery):
 
 
 
-@router.message()
-async def handle_block_unblock_commands(message: types.Message):
+@router.message(F.text.startswith("/block"))
+async def cmd_block_slot(message: types.Message):
     if message.from_user.id not in ADMIN_IDS:
         return
-
-    text = message.text.strip()
-
-    # Обработка /block
-    block_match = re.match(r"^/block(?:@\w+)?\s+(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})$", text)
-    if block_match:
-        date_str, time_str = block_match.groups()
-        if not await is_date_available(date_str):
-            await message.answer("❌ Эта дата не в графике или заблокирована целиком.")
-            return
-        await block_time_slot(date_str, time_str)
-        await message.answer(f"🔒 Слот {time_str} на {date_str} заблокирован.")
+    # Убираем возможное @botname
+    text = message.text.split("@")[0]  # оставляем только /block
+    parts = text.split()
+    if len(parts) != 3:
+        await message.answer("❌ Используйте: /block YYYY-MM-DD HH:MM")
+        return
+    date_str, time_str = parts[1], parts[2]
+    
+    if not await is_date_available(date_str):
+        await message.answer("❌ Эта дата не в графике или заблокирована целиком.")
         return
 
-    # Обработка /unblock
-    unblock_match = re.match(r"^/unblock(?:@\w+)?\s+(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})$", text)
-    if unblock_match:
-        date_str, time_str = unblock_match.groups()
-        await restore_time_slot(date_str, time_str)
-        await message.answer(f"🔓 Слот {time_str} на {date_str} разблокирован.")
+    await block_time_slot(date_str, time_str)
+    await message.answer(f"🔒 Слот {time_str} на {date_str} заблокирован.")
+
+
+@router.message(F.text.startswith("/unblock"))
+async def cmd_unblock_slot(message: types.Message):
+    if message.from_user.id not in ADMIN_IDS:
         return
+    text = message.text.split("@")[0]
+    parts = text.split()
+    if len(parts) != 3:
+        await message.answer("❌ Используйте: /unblock YYYY-MM-DD HH:MM")
+        return
+    date_str, time_str = parts[1], parts[2]
+
+    await restore_time_slot(date_str, time_str)
+    await message.answer(f"🔓 Слот {time_str} на {date_str} разблокирован.")
