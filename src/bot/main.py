@@ -28,10 +28,10 @@ async def main():
     dp.include_router(services_router)
     dp.include_router(photos_router)
     dp.include_router(appointments_router)
-    dp.include_router(admin_router)
     dp.include_router(my_appointments_router)
     dp.include_router(coupons_router)
     dp.include_router(info_router)
+    dp.include_router(admin_router)
     
     # Запускаем планировщик напоминаний
     setup_scheduler()
