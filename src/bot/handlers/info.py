@@ -1,5 +1,6 @@
 # bot/handlers/info.py
 from aiogram import Router, F, types
+from aiogram.fsm.context import FSMContext
 from aiogram.filters import StateFilter
 from bot.config import MAIN_KB, LANGUAGE
 import logging
