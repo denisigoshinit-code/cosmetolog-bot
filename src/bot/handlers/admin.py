@@ -4,7 +4,9 @@ import re
 from bot.utils.database import (
     get_all_coupons, get_week_appointments, mark_coupon_paid, 
     use_coupon_session, update_schedule_date, get_pending_coupons, get_active_coupons,
-    get_payment_coupons, update_coupon_status, block_time_slot, restore_time_slot, is_date_available, get_appointment_by_id, delete_appointment,restore_time_slot, reject_coupon, get_active_coupons, get_coupon_by_id
+    get_payment_coupons, update_coupon_status, block_time_slot, restore_time_slot, 
+    is_date_available, get_appointment_by_id, delete_appointment,restore_time_slot, 
+    reject_coupon, get_active_coupons, get_available_time_slots, get_coupon_by_id
 )
 from bot.commands.db_tools import get_db_stats, export_appointments_to_csv, get_schedule_for_period
 from bot.fsm import AdminStates
@@ -476,36 +478,78 @@ async def admin_cancel_appointment(callback: types.CallbackQuery):
 
 
 
-@router.message(F.text.startswith("/block"))
-async def cmd_block_slot(message: types.Message):
+# === БЛОКИРОВКА И РАЗБЛОКИРОВКА ОТДЕЛЬНЫХ СЛОТОВ ===
+
+@router.message(F.text == "🔒 Блокировать слот")
+async def start_block_slot(message: types.Message, state: FSMContext):
     if message.from_user.id not in ADMIN_IDS:
         return
-    # Убираем возможное @botname
-    text = message.text.split("@")[0]  # оставляем только /block
-    parts = text.split()
-    if len(parts) != 3:
-        await message.answer("❌ Используйте: /block YYYY-MM-DD HH:MM")
-        return
-    date_str, time_str = parts[1], parts[2]
-    
-    if not await is_date_available(date_str):
-        await message.answer("❌ Эта дата не в графике или заблокирована целиком.")
-        return
+    await message.answer("Введите дату (YYYY-MM-DD):")
+    await state.set_state(AdminStates.waiting_for_date_to_block)
 
+@router.message(F.text == "🔓 Разблокировать слот")
+async def start_unblock_slot(message: types.Message, state: FSMContext):
+    if message.from_user.id not in ADMIN_IDS:
+        return
+    await message.answer("Введите дату (YYYY-MM-DD):")
+    await state.set_state(AdminStates.waiting_for_date_to_unblock)
+
+@router.message(AdminStates.waiting_for_date_to_block)
+async def get_date_for_block(message: types.Message, state: FSMContext):
+    if len(message.text) != 10 or message.text.count("-") != 2:
+        await message.answer("❌ Неверный формат. Используйте: YYYY-MM-DD")
+        return
+    date_str = message.text
+    try:
+        datetime.strptime(date_str, "%Y-%m-%d")
+    except ValueError:
+        await message.answer("❌ Неверная дата.")
+        return
+    times = await get_available_time_slots(date_str)
+    if not times:
+        await message.answer("❌ Нет доступных времён на эту дату.")
+        return
+    kb = types.InlineKeyboardMarkup(inline_keyboard=[
+        [types.InlineKeyboardButton(text=t, callback_data=f"block_time_{date_str}_{t}")]
+        for t in times
+    ])
+    await message.answer(f"Выберите время для блокировки на {date_str}:", reply_markup=kb)
+    await state.clear()
+
+@router.message(AdminStates.waiting_for_date_to_unblock)
+async def get_date_for_unblock(message: types.Message, state: FSMContext):
+    if len(message.text) != 10 or message.text.count("-") != 2:
+        await message.answer("❌ Неверный формат. Используйте: YYYY-MM-DD")
+        return
+    date_str = message.text
+    try:
+        datetime.strptime(date_str, "%Y-%m-%d")
+    except ValueError:
+        await message.answer("❌ Неверная дата.")
+        return
+    all_possible_times = [f"{h:02d}:00" for h in range(9, 20)]
+    available_times = set(await get_available_time_slots(date_str))
+    blocked_times = [t for t in all_possible_times if t not in available_times]
+    if not blocked_times:
+        await message.answer("❌ Нет заблокированных времён на эту дату.")
+        return
+    kb = types.InlineKeyboardMarkup(inline_keyboard=[
+        [types.InlineKeyboardButton(text=t, callback_data=f"unblock_time_{date_str}_{t}")]
+        for t in blocked_times
+    ])
+    await message.answer(f"Выберите время для разблокировки на {date_str}:", reply_markup=kb)
+    await state.clear()
+
+@router.callback_query(F.data.startswith("block_time_"))
+async def confirm_block_time(callback: types.CallbackQuery):
+    _, date_str, time_str = callback.data.split("_", 2)
     await block_time_slot(date_str, time_str)
-    await message.answer(f"🔒 Слот {time_str} на {date_str} заблокирован.")
+    await callback.message.edit_text(f"🔒 Слот {time_str} на {date_str} заблокирован.")
+    await callback.answer()
 
-
-@router.message(F.text.startswith("/unblock"))
-async def cmd_unblock_slot(message: types.Message):
-    if message.from_user.id not in ADMIN_IDS:
-        return
-    text = message.text.split("@")[0]
-    parts = text.split()
-    if len(parts) != 3:
-        await message.answer("❌ Используйте: /unblock YYYY-MM-DD HH:MM")
-        return
-    date_str, time_str = parts[1], parts[2]
-
+@router.callback_query(F.data.startswith("unblock_time_"))
+async def confirm_unblock_time(callback: types.CallbackQuery):
+    _, date_str, time_str = callback.data.split("_", 2)
     await restore_time_slot(date_str, time_str)
-    await message.answer(f"🔓 Слот {time_str} на {date_str} разблокирован.")
+    await callback.message.edit_text(f"🔓 Слот {time_str} на {date_str} разблокирован.")
+    await callback.answer()

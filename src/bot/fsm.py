@@ -18,3 +18,5 @@ class AdminStates(StatesGroup):
     waiting_for_date = State()
     waiting_for_schedule_action = State()
     waiting_for_coupon_to_mark = State()
+    waiting_for_date_to_block = State()      
+    waiting_for_date_to_unblock = State()

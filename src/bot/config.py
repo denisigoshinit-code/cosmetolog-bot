@@ -53,6 +53,8 @@ SCHEDULE_KB = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="🟩 Разрешить приём"), KeyboardButton(text="🟥 Заблокировать день")],
         [KeyboardButton(text="⏳ Установить обед"), KeyboardButton(text="🌙 Ночная смена")],
+         [KeyboardButton(text="⏳ Установить обед"), KeyboardButton(text="🌙 Ночная смена")],
+        [KeyboardButton(text="🔒 Блокировать слот"), KeyboardButton(text="🔓 Разблокировать слот")],
         [KeyboardButton(text="🔙 Назад")]
     ],
     resize_keyboard=True
