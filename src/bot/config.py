@@ -19,7 +19,7 @@ storage = MemoryStorage()
 # Главная клавиатура
 MAIN_KB = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton(text="📋 Услуги"), KeyboardButton(text="📸 До/после")],
+        [KeyboardButton(text="📋 Услуги"), KeyboardButton(text="📸 Фото")],
         [KeyboardButton(text="📅 Записаться"), KeyboardButton(text="🧾 Мои записи")],
         [KeyboardButton(text="📍 Где я нахожусь?"), KeyboardButton(text="🎁 Купоны")]
     ],

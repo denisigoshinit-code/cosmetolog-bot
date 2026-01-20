@@ -542,14 +542,25 @@ async def get_date_for_unblock(message: types.Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("block_time_"))
 async def confirm_block_time(callback: types.CallbackQuery):
-    _, date_str, time_str = callback.data.split("_", 2)
+    # Пример: "block_time_2026-01-20_15:00"
+    parts = callback.data.split("_")
+    if len(parts) < 4:
+        await callback.answer("❌ Неверный формат данных", show_alert=True)
+        return
+    date_str = parts[2]
+    time_str = parts[3]
     await block_time_slot(date_str, time_str)
     await callback.message.edit_text(f"🔒 Слот {time_str} на {date_str} заблокирован.")
     await callback.answer()
 
 @router.callback_query(F.data.startswith("unblock_time_"))
 async def confirm_unblock_time(callback: types.CallbackQuery):
-    _, date_str, time_str = callback.data.split("_", 2)
+    parts = callback.data.split("_")
+    if len(parts) < 4:
+        await callback.answer("❌ Неверный формат данных", show_alert=True)
+        return
+    date_str = parts[2]
+    time_str = parts[3]
     await restore_time_slot(date_str, time_str)
     await callback.message.edit_text(f"🔓 Слот {time_str} на {date_str} разблокирован.")
     await callback.answer()
