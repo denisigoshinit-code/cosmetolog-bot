@@ -9,7 +9,7 @@ PHOTO_2 = "AgACAgIAAxkBAAIHVGlp1Dvr_YZMgiPHwidyYv0U1J8vAAL4C2sbXfBRS-Fe2Rb0vCTMA
 PHOTO_3 = "AgACAgIAAxkBAAIHVmlp1EK7B8dlYY4m-navxvmdDy59AAL5C2sbXfBRS06RAytrFmgMAQADAgADeQADOAQ"
 
 
-@router.message(F.text == "📸 До/после")
+@router.message(F.text == "📸 Фото")
 async def show_before_after(message: types.Message):
     media = [
         InputMediaPhoto(media=PHOTO_1),
@@ -17,4 +17,4 @@ async def show_before_after(message: types.Message):
         InputMediaPhoto(media=PHOTO_3),
     ]
     await message.answer_media_group(media)
-    await message.answer("Хотите такой же результат?", reply_markup=MAIN_KB)
+    await message.answer("Записывайтесь на консультацию", reply_markup=MAIN_KB)
