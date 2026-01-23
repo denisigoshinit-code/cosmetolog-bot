@@ -1,5 +1,6 @@
 from aiogram import Router, F, types
 from aiogram.types import InputMediaPhoto
+from aiogram.filters import StateFilter
 from bot.config import MAIN_KB
 
 router = Router()
@@ -9,7 +10,7 @@ PHOTO_2 = "AgACAgIAAxkBAAIHVGlp1Dvr_YZMgiPHwidyYv0U1J8vAAL4C2sbXfBRS-Fe2Rb0vCTMA
 PHOTO_3 = "AgACAgIAAxkBAAIHVmlp1EK7B8dlYY4m-navxvmdDy59AAL5C2sbXfBRS06RAytrFmgMAQADAgADeQADOAQ"
 
 
-@router.message(F.text == "📸 Фото")
+@router.message(F.text == "📸 Фото", StateFilter("*"))
 async def show_before_after(message: types.Message):
     media = [
         InputMediaPhoto(media=PHOTO_1),
