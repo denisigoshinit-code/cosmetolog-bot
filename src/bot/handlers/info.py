@@ -2,6 +2,7 @@
 from aiogram import Router, F, types
 from aiogram.fsm.context import FSMContext
 from aiogram.filters import StateFilter
+from bot.utils.database import log_button_click
 from bot.config import MAIN_KB, LANGUAGE
 import logging
 from pathlib import Path
@@ -16,7 +17,7 @@ async def show_location(message: types.Message):
     """Показывает контактную информацию и ссылки на карты."""
     ROOT_DIR = Path(__file__).parent.parent.parent
     texts_path = ROOT_DIR / "texts" / f"{LANGUAGE}.json"
-
+    await log_button_click(message.from_user.id, "📍 Где я нахожусь?")
     try:
         with open(texts_path, "r", encoding="utf-8") as f:
             texts = json.load(f)

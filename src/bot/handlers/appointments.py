@@ -7,7 +7,7 @@ from bot.utils.calendar import create_calendar
 from bot.utils.database import (
     get_services, is_time_available, create_appointment, 
     get_service_name, get_user_appointments, cancel_appointment,
-    get_available_time_slots, is_date_available, add_user
+    get_available_time_slots, log_button_click, is_date_available, add_user
 )
 from bot.utils.reminders import notify_admin_about_booking
 from bot.fsm import Appointment
@@ -24,6 +24,7 @@ router = Router()
 @router.message(F.text == "📅 Записаться")
 async def start_appointment(message: types.Message):
     # Добавляем пользователя в базу
+    await log_button_click(message.from_user.id, "📅 Записаться")
     await add_user(
         message.from_user.id,
         message.from_user.first_name,

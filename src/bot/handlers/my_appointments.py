@@ -1,6 +1,6 @@
 # src/bot/handlers/my_appointments.py
 from aiogram import Router, F, types
-from bot.utils.database import get_user_appointments, cancel_appointment
+from bot.utils.database import get_user_appointments, log_button_click, log_cancellation, get_appointment_by_id, cancel_appointment
 from bot.config import MAIN_KB, LANGUAGE
 import json
 from pathlib import Path
@@ -27,6 +27,8 @@ async def my_appointments(message: types.Message):
     except FileNotFoundError:
         await message.answer("❌ Ошибка: файл локализации не найден.")
         return
+    
+    await log_button_click(message.from_user.id, "🧾 Мои записи")
 
     if not appointments:
         await message.answer("📭 У вас нет активных записей.", reply_markup=MAIN_KB)
@@ -50,7 +52,6 @@ async def my_appointments(message: types.Message):
         ])
 
         await message.answer(text, reply_markup=kb, parse_mode="Markdown")
-
     # В конце — главное меню
     await message.answer("Выберите действие:", reply_markup=MAIN_KB)
 
@@ -68,6 +69,11 @@ async def cancel_appointment_callback(callback: types.CallbackQuery):
         success = await cancel_appointment(appointment_id, user_id)
 
         if success:
+                # Получаем дату и время записи для лога
+            appt = await get_appointment_by_id(appointment_id)
+            if appt:
+                scheduled_time = f"{appt['date']} {appt['time']}"
+                await log_cancellation(appointment_id, user_id, scheduled_time)
             # Меняем текст и убираем кнопку
             await callback.message.edit_text(
                 "✅ Запись отменена.",

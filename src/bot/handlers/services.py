@@ -1,5 +1,5 @@
 from aiogram import Router, F, types
-from bot.utils.database import get_services
+from bot.utils.database import get_services, log_button_click
 from bot.config import MAIN_KB, LANGUAGE
 import json
 from pathlib import Path
@@ -17,6 +17,8 @@ async def show_services(message: types.Message):
     except FileNotFoundError:
         await message.answer("❌ Ошибка: файл локализации не найден.")
         return
+
+    await log_button_click(message.from_user.id, "📋 Услуги")
 
     if not services:
         await message.answer(texts["no_services"])

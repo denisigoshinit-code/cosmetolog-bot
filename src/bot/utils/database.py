@@ -784,3 +784,27 @@ async def restore_time_slot(date: str, time: str):
     finally:
         await conn.close()
 
+# === ЛОГИРОВАНИЕ ОТМЕН ===
+async def log_cancellation(appointment_id: int, user_id: int, scheduled_time: str):
+    """Логирует отмену записи"""
+    conn = await asyncpg.connect(get_db_url())
+    try:
+        await conn.execute("""
+            INSERT INTO cancellations (appointment_id, user_id, scheduled_time)
+            VALUES ($1, $2, $3)
+        """, appointment_id, user_id, scheduled_time)
+    finally:
+        await conn.close()
+
+# === ЛОГИРОВАНИЕ НАЖАТИЙ КНОПОК ===
+async def log_button_click(user_id: int, button_text: str):
+    """Логирует нажатие кнопки"""
+    conn = await asyncpg.connect(get_db_url())
+    try:
+        await conn.execute("""
+            INSERT INTO button_clicks (user_id, button_text)
+            VALUES ($1, $2)
+        """, user_id, button_text)
+    finally:
+        await conn.close()
+

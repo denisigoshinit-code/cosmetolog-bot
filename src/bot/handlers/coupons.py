@@ -3,7 +3,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.filters import StateFilter, Command
 from aiogram.types import Contact
 from bot.utils.database import (
-    create_coupon_with_details, get_user_coupons, use_coupon, 
+    create_coupon_with_details, log_button_click, get_user_coupons, use_coupon, 
     COUPON_TYPES, CONTACT_METHODS, update_coupon_status, get_pending_coupons,
     get_payment_coupons, get_coupon_by_id
 )
@@ -35,6 +35,7 @@ CONTACT_METHODS = {
 async def coupons_menu(message: types.Message):
     ROOT_DIR = Path(__file__).parent.parent.parent
     texts_path = ROOT_DIR / "texts" / f"{LANGUAGE}.json"
+    await log_button_click(message.from_user.id, "🎁 Купоны")
     try:
         with open(texts_path, "r", encoding="utf-8") as f:
             texts = json.load(f)

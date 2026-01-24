@@ -6,7 +6,7 @@ from bot.utils.database import (
     use_coupon_session, update_schedule_date, get_pending_coupons, get_active_coupons,
     get_payment_coupons, update_coupon_status, block_time_slot, restore_time_slot, 
     is_date_available, get_appointment_by_id, delete_appointment,restore_time_slot, 
-    reject_coupon, get_active_coupons, get_available_time_slots, get_coupon_by_id
+    reject_coupon, log_cancellation, get_active_coupons, get_available_time_slots, get_coupon_by_id
 )
 from bot.commands.db_tools import get_db_stats, export_appointments_to_csv, get_schedule_for_period
 from bot.fsm import AdminStates
@@ -448,6 +448,8 @@ async def admin_cancel_appointment(callback: types.CallbackQuery):
 
         # Удаляем запись
         await delete_appointment(appointment_id)
+        scheduled_time = f"{appointment['date']} {appointment['time']}"
+        await log_cancellation(appointment_id, appointment['user_id'], scheduled_time)
 
         # Возвращаем слот в расписание
         await restore_time_slot(appointment['date'], appointment['time'])
